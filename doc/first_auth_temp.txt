@@ -1,0 +1,118 @@
+MFRC522_T::status_t MFRC522_T::mfp_first_auth(uint8_t* resp, uint8_t* resp_len,uint16_t block, uint8_t* key, uint8_t key_len)
+	{ 
+		status_t res;
+		uint8_t rndb[17]; 
+		uint8_t rndb_len = sizeof(rndb);
+		uint8_t cmd[] = {PICC_MFP_mfp_first_auth_A,block&0xff,(block>>8)&0xff,0}; 
+		res =  tcl_transceive_ib(cmd,sizeof(cmd),rndb,&rndb_len);
+		if((res != STATUS_OK)||(rndb[0] != 0x90))
+			{
+			(*resp_len) = 1;
+			resp[0] = rndb[0];
+			return res;
+			}
+			
+		/**
+		* Получили E(Kx, RndB)
+		*/
+		memset(aes->iv_dec,0,16);
+		aes->aes128_dec(key, &rndb[1],AES_T::CBC); /**< resp[1..17] Расшифровали KX; RNDB */
+		uint8_t sec_cmd[33] = {PICC_MFP_AUTH_B,0,1,2,3,4,5,6,7,8,9,0xa,0xb,0xc,0xd,0xe,0xf}; /**< Установили номер команду и RNDA, хотя оно и должно быть случайным */
+		mfp_auth_b_cmd_t* sec_cmd_ptr= (mfp_auth_b_cmd_t*)sec_cmd;
+		
+		/**
+		* Сдвигаем на один байт влево и получаем RNDB`
+		*/
+		sec_cmd_ptr->rndb_s[15] = rndb[1];
+		memcpy(sec_cmd_ptr->rndb_s,&rndb[2],15); /**< RNB` = rotate_left(RNB,1); */
+		/**
+		* Теперь шифруем RNDA + RNDB`, сначала А, потом Б с наложенным на него А (CBC режим)
+		*	E(Kx, RndA || RndB‟)
+		*/
+		memset(aes->iv_enc,0,16);
+		aes->aes128_enc(key,(uint8_t*)&sec_cmd_ptr->rnda,AES_T::CBC);
+		aes->aes128_enc(key,(uint8_t*)&sec_cmd_ptr->rndb_s,AES_T::CBC);
+		
+		/**
+		* Где-то там проверяется RNDA
+		* там RNDA сдвигается и получается RNDA`
+		* В ответ должен получить нечто, E(Kx, TI || RndA‟ || PICCcap2 || PCDcap2) -> 32 байта
+		* либо resp[0] = 6;
+		*/
+			
+		mfp_mfp_first_auth_resp_b_t rr = {};
+		uint8_t rr_len = sizeof(rr);
+		res =  tcl_transceive_ib(sec_cmd,sizeof(sec_cmd),(uint8_t*)&rr,&rr_len);
+			
+		if((res != STATUS_OK)||(rr.status != MFP_STATUS_OK ))
+			{
+			(*resp_len) = 1;
+			resp[0] = rr.status;
+			return res;
+			}
+		aes->aes128_dec(key, &rr.raw[0],AES_T::CBC);
+		aes->aes128_dec(key, &rr.raw[16],AES_T::CBC);
+		//if rnda_s == rnda
+		memcpy((uint8_t*)&ti,rr.ti,sizeof(ti));
+		memcpy(picc_cap,rr.picc_cap,sizeof(picc_cap));
+		memcpy(pcd_cap,rr.pcd_cap,sizeof(pcd_cap));
+			
+		return res;
+	}
+
+
+    MFRC522_T::status_t MFRC522_T::mfp_first_auth(uint8_t* resp, uint8_t* resp_len,uint16_t block, uint8_t* key, uint8_t key_len)
+	{ 
+		status_t res;
+		uint8_t r[33]; 
+		uint8_t r_len = sizeof(r);
+		uint8_t cmd[] = {PICC_MFP_mfp_first_auth_A,block&0xff,(block>>8)&0xff,0}; 
+		res =  tcl_transceive_ib(cmd,sizeof(cmd),r,&r_len);
+		if((res != STATUS_OK)||(r[0] != 0x90))
+			{
+			(*resp_len) = 1;
+			resp[0] = r[0];
+			return res;
+			}
+			
+		/**
+		* Получили E(Kx, RndB)
+		*/
+		memset(aes->iv_dec,0,16);
+		aes->aes128_dec(key, &r[1],AES_T::CBC); /**< resp[1..17] Расшифровали KX; RNDB */
+		/**
+		* Сдвигаем на один байт влево и получаем RNDB`
+		*/
+		uint8_t rndb_s[16] = {0};
+		uint8_t rnda[] = {0,1,2,3,4,5,6,7,8,9,0xa,0xb,0xc,0xd,0xe,0xf};
+		rndb_s[15] = r[1];
+		memcpy(rndb_s,&r[2],15); /**< RNB` = rotate_left(RNB,1); */
+		/**
+		* Теперь шифруем RNDA + RNDB`, сначала А, потом Б с наложенным на него А (CBC режим)
+		*	E(Kx, RndA || RndB‟)
+		*/
+		r[0] = PICC_MFP_mfp_first_auth_B;
+		memcpy(&r[1],rnda,sizeof(rnda));
+		memcpy(&r[17],rndb_s,sizeof(rnda));
+		memset(aes->iv_enc,0,16);
+		aes->aes128_enc(key,&r[1],AES_T::CBC);
+		aes->aes128_enc(key,&r[17],AES_T::CBC);
+		
+		/**
+		* Где-то там проверяется RNDA
+		* там RNDA сдвигается и получается RNDA`
+		* В ответ должен получить нечто, E(Kx, TI || RndA‟ || PICCcap2 || PCDcap2) -> 32 байта
+		*/
+		uint8_t rr[33] = {};
+		res =  tcl_transceive_ib(r,sizeof(r),rr,&r_len);
+		if((res != STATUS_OK)||(r[0] != 0x90))
+			{
+			(*resp_len) = 1;
+			resp[0] = r[0];
+			return res;
+			}
+		aes->aes128_dec(key, &rr[1],AES_T::CBC);
+		
+			
+		return res;
+	}

@@ -1,0 +1,27 @@
+	/**< Write perso! */
+					printf("Write perso 4000-403f: ");
+					for(uint16_t i = 0x4000; i < 0x403f; i+=2)
+						{
+						resp_len = sizeof(resp);
+						res = reader.mfp_write_perso(resp,&resp_len,i,(uint8_t*)mfp_master_key);
+						if((res != MFRC522_T::STATUS_OK)||(resp[0] != 0x90))
+							{
+							printf("%x -> %d:%x\r\n",i,res,resp[0]);
+							break;
+							}
+						}
+					printf("OK\r\n");
+						
+					printf("Write perso 9000-9003: \r\n");
+					for(uint16_t i = 0x9000; i <= 0x9003; i++)
+						{
+						resp_len = sizeof(resp);
+						res = reader.mfp_write_perso(resp,&resp_len,i,(uint8_t*)mfp_master_key);
+						printf("%x -> %d:%x\r\n",i,res,resp[0]);
+						}		
+						
+						
+					printf("Commit: ");
+					resp_len = sizeof(resp);
+					res = reader.mfp_commit_perso(resp, &resp_len);
+					printf("%i %x\r\n",res, resp[0]);
