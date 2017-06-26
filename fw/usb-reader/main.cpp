@@ -22,7 +22,8 @@ extern "C"
 
 	uint8_t reader_temp_buffer[128] = {};
 	USB_CORE_HANDLE  USB_Device_dev ; /**< Описание USB устроства */
-	usb_reader_cmd_t usb_reader_cmd;
+	uint16_t usb_reader_cmd;
+	usb_reader_cmd_t* usb_reader_cmd_ptr;
 	/**
 	* Прерывание системного таймера (1мс)
 	*/
@@ -70,6 +71,7 @@ int main()
 		{
 		return 0;
 		}
+	usb_reader_cmd_ptr = (usb_reader_cmd_t*) &usb_reader_cmd;
 	const uint8_t* hw_serial = (uint8_t*)0x1FFFF7AC;
 	delay(1000);
 	reader.PCD_Init();
@@ -77,20 +79,33 @@ int main()
 
 	while(1)
 		{
-		switch(usb_reader_cmd.cmd)
+		switch(usb_reader_cmd_ptr->cmd)
 			{
 			case REQA_WUPA:
 				{
-				usb_reader_cmd.resp = (uint8_t)reader.PICC_REQA_or_WUPA(MFRC522_T::PICC_CMD_REQA,(uint8_t*)&reader_temp_buffer, &usb_reader_cmd.len);
+				uint8_t resp_len = sizeof(reader_temp_buffer);
+				usb_reader_cmd_ptr->resp = (uint8_t)reader.PICC_REQA_or_WUPA(MFRC522_T::PICC_CMD_REQA,(uint8_t*)&reader_temp_buffer, &resp_len)|0x80;
+				if ((usb_reader_cmd_ptr->resp&0x7f)  != MFRC522_T::STATUS_OK)
+					{
+					usb_reader_cmd_ptr->len = 0;
+					}
+				else
+					{
+					usb_reader_cmd_ptr->len = resp_len;
+					}
 				};
 			break;
 
 			case SELECT:
 				{
-				usb_reader_cmd.resp = (uint8_t) reader.PICC_Select((MFRC522_T::uid_t*)&reader_temp_buffer, 0);
-				if(!usb_reader_cmd.resp)
+				usb_reader_cmd_ptr->resp = (uint8_t) reader.PICC_Select((MFRC522_T::uid_t*)&reader_temp_buffer, 0)|0x80;
+				if ((usb_reader_cmd_ptr->resp&0x7f)  != MFRC522_T::STATUS_OK)
 					{
-					usb_reader_cmd.len = sizeof(MFRC522_T::uid_t);
+					usb_reader_cmd_ptr->len = 0;
+					}
+				else
+					{
+					usb_reader_cmd_ptr->len = sizeof(MFRC522_T::uid_t);
 					}
 				};
 			break;
@@ -99,30 +114,37 @@ int main()
 				{
 				if ((reader.PCD_ReadRegister(MFRC522_T::TxModeReg)&0x80) != 0x80)
 					{
-					usb_reader_cmd.resp  = reader.PCD_CalculateCRC(reader_temp_buffer,usb_reader_cmd.len,&reader_temp_buffer[usb_reader_cmd.len]);
-					if (usb_reader_cmd.resp  != MFRC522_T::STATUS_OK)
+					usb_reader_cmd_ptr->resp  = reader.PCD_CalculateCRC(reader_temp_buffer,usb_reader_cmd_ptr->len,&reader_temp_buffer[usb_reader_cmd_ptr->len])|0x80;
+					if ((usb_reader_cmd_ptr->resp&0x7f)  != MFRC522_T::STATUS_OK)
 						{
 						break;
 						}
-					usb_reader_cmd.len += 2;
+					usb_reader_cmd_ptr->len += 2;
 					}
 				uint8_t resp_len = sizeof(reader_temp_buffer);
-				usb_reader_cmd.resp = (uint8_t)reader.PCD_TransceiveData(reader_temp_buffer,usb_reader_cmd.len,reader_temp_buffer,&resp_len);
-				usb_reader_cmd.len = resp_len;
+				usb_reader_cmd_ptr->resp = (uint8_t)reader.PCD_TransceiveData(reader_temp_buffer,usb_reader_cmd_ptr->len,reader_temp_buffer,&resp_len)|0x80;
+				if ((usb_reader_cmd_ptr->resp&0x7f)  != MFRC522_T::STATUS_OK)
+					{
+					usb_reader_cmd_ptr->len = 0;
+					}
+				else
+					{
+					usb_reader_cmd_ptr->len = resp_len;
+					}
 				};
 			break;
 
 			case STOP_CRYPTO1:
 				{
 				reader.PCD_StopCrypto1();
-				usb_reader_cmd.resp = 0x80;
-				usb_reader_cmd.len = 0;
+				usb_reader_cmd_ptr->resp = 0x80;
+				usb_reader_cmd_ptr->len = 0;
 				};
 			break;
 
 			case MF_AUTH:
 				{
-				if(usb_reader_cmd.len >= 8)
+				if(usb_reader_cmd_ptr->len >= 8)
 					{
 					struct mf_auth_cmd_t
 						{
@@ -131,13 +153,13 @@ int main()
 						MFRC522_T::uid_t uid;
 						};
 					mf_auth_cmd_t* d = (mf_auth_cmd_t*)&reader_temp_buffer;
-					usb_reader_cmd.resp = (uint8_t)reader.PCD_Authenticate(MFRC522_T::PICC_CMD_MF_AUTH_KEY_A,d->block,&d->key,&d->uid);
-					usb_reader_cmd.len = 0;
+					usb_reader_cmd_ptr->resp = (uint8_t)reader.PCD_Authenticate(MFRC522_T::PICC_CMD_MF_AUTH_KEY_A,d->block,&d->key,&d->uid)|0x80;
+					usb_reader_cmd_ptr->len = 0;
 					}
 				else
 					{
-					usb_reader_cmd.resp = 0xff;
-					usb_reader_cmd.len = 0;
+					usb_reader_cmd_ptr->resp = 0xff;
+					usb_reader_cmd_ptr->len = 0;
 					}
 				};
 			break;
@@ -145,8 +167,8 @@ int main()
 			case READER_SERIAL:
 				{
 				memcpy(reader_temp_buffer,hw_serial,12);
-				usb_reader_cmd.resp = 0x80;
-				usb_reader_cmd.len = 12;
+				usb_reader_cmd_ptr->resp = 0x80;
+				usb_reader_cmd_ptr->len = 12;
 				};
 			break;
 

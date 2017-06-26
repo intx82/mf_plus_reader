@@ -81,10 +81,10 @@ uint8_t  usbd_reader_init (void  *pdev,  uint8_t cfgidx)
 	DCD_PMA_Config(pdev , READER_DATA_OUT_EP,USB_SNG_BUF,READER_DATA_OUT_ADDRESS);
 
 
-	DCD_EP_Open(pdev,READER_DATA_IN_EP,0x20,USB_EP_BULK);
-	DCD_EP_Open(pdev,READER_DATA_OUT_EP,0x20,USB_EP_BULK);
+	DCD_EP_Open(pdev,READER_DATA_IN_EP,USB_READER_EP_DATA_SIZE,USB_EP_BULK);
+	DCD_EP_Open(pdev,READER_DATA_OUT_EP,USB_READER_EP_DATA_SIZE,USB_EP_BULK);
 
-	DCD_EP_PrepareRx(pdev, READER_DATA_OUT_EP, (uint8_t*)(reader_temp_buffer),0x20);
+	DCD_EP_PrepareRx(pdev, READER_DATA_OUT_EP, (uint8_t*)(reader_temp_buffer),USB_READER_EP_DATA_SIZE);
 	return USBD_OK;
 	}
 
@@ -107,13 +107,13 @@ uint8_t  usbd_reader_setup (void  *pdev,USB_SETUP_REQ *req)
 			{
 			if (req->bmRequest & 0x80)
 				{
-				USBD_CtlSendData (pdev,(uint8_t*)&usb_reader_cmd,2);
+				USBD_CtlSendData (pdev,(uint8_t*)&usb_reader_cmd,sizeof(usb_reader_cmd));
 				}
 			else
 				{
 				if(req->wLength == 2)
 					{
-					USBD_CtlPrepareRx (pdev,(uint8_t*)&usb_reader_cmd,2);
+					USBD_CtlPrepareRx (pdev,(uint8_t*)&usb_reader_cmd,sizeof(usb_reader_cmd));
 					}
 				}
 			};
@@ -147,7 +147,7 @@ uint8_t  usbd_reader_ep0_rxready (void  *pdev)
 
 uint8_t  usbd_READER_DATAin (void *pdev, uint8_t epnum)
 	{
-	DCD_EP_Tx (pdev,READER_DATA_IN_EP,0,0);
+	DCD_EP_Tx (pdev,READER_DATA_IN_EP,reader_temp_buffer,(usb_reader_cmd>>8));
 	return USBD_OK;
 	}
 
@@ -160,8 +160,7 @@ uint8_t  usbd_READER_DATAin (void *pdev, uint8_t epnum)
   */
 uint8_t  usbd_READER_DATAout (void *pdev, uint8_t epnum)
 	{
-//  uint16_t rx_len = ((USB_CORE_HANDLE*)pdev)->dev.out_ep[epnum].xfer_count;
-	DCD_EP_PrepareRx(pdev, READER_DATA_OUT_EP, 0,0x0);
+	DCD_EP_PrepareRx(pdev, READER_DATA_OUT_EP, (uint8_t*)(reader_temp_buffer),(usb_reader_cmd>>8));
 	return USBD_OK;
 	}
 
@@ -174,7 +173,7 @@ uint8_t  usbd_READER_DATAout (void *pdev, uint8_t epnum)
   */
 uint8_t  usbd_reader_sof  (void *pdev)
 	{
-	DCD_EP_Tx (pdev,READER_DATA_IN_EP,reader_temp_buffer,USB_READER_CONFIG_DESC_SIZ );
+	DCD_EP_Tx (pdev,READER_DATA_IN_EP,reader_temp_buffer,(usb_reader_cmd>>8) );
 	return USBD_OK;
 	}
 

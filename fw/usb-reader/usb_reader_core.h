@@ -10,6 +10,7 @@
 #define READER_DATA_OUT_ADDRESS (READER_DATA_IN_ADDRESS+USB_READER_CONFIG_DESC_SIZ)
 
 #pragma anon_unions
+#pragma pack(push,1)
 
 #define USB_READER_DESC_SIZ                       (USB_READER_CONFIG_DESC_SIZ -9)
 
@@ -36,6 +37,6 @@ typedef struct
 
 extern USBD_Class_cb_TypeDef  USBD_reader_cb;
 extern uint8_t reader_temp_buffer[USB_READER_EP_DATA_SIZE];
-extern usb_reader_cmd_t usb_reader_cmd;
-
-
+extern uint16_t usb_reader_cmd;
+extern usb_reader_cmd_t* usb_reader_cmd_ptr;
+#pragma pack(pop)
