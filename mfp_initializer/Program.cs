@@ -296,13 +296,13 @@ namespace mfp_initializer
                     if (r.resp == mifare_reader_cmd_resp_t.resp_t.OK)
                     {
                         Console.Clear();
-                        Console.WriteLine("{0,0}{1,20}", "REQA: ", BitConverter.ToString(sak).Replace("-", string.Empty));
+                        Console.WriteLine("REQA: {0}",BitConverter.ToString(sak).Replace("-", string.Empty));
                         byte[] serial;
                         Thread.Sleep(10);
                         r = select_cmd(out serial);
                         if (r.resp == mifare_reader_cmd_resp_t.resp_t.OK)
                         {
-                            Console.WriteLine("{0,0}{1,20}", "SELECT: ", BitConverter.ToString(serial,1, serial[0]).Replace("-", ":"));
+                            Console.WriteLine("SELECT: {0} --> SAK: {1:X02}",  BitConverter.ToString(serial,1, serial[0]).Replace("-", ":"), serial.Last());
                             if ((sak[0] & 0x40) == 0x40)
                             {
                                 print_cmd(new byte[2] { 0xe0, 0x50 });
@@ -311,7 +311,7 @@ namespace mfp_initializer
                             {
                                 Thread.Sleep(10);
                                 byte[] key = new byte[6] { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-                                Console.WriteLine("MF_AUTH ({1}): [{0}] ", mf_auth_cmd(0, key, serial).resp.ToString("G"), BitConverter.ToString(key).Replace("-", ":"));
+                                Console.WriteLine("MF_AUTH: (0,{1}): [{0}] ", mf_auth_cmd(0, key, serial).resp.ToString("G"), BitConverter.ToString(key).Replace("-", ":"));
                                 print_cmd(new byte[2] { 0x30, 1 });
                                 Console.WriteLine("CRYPTO1_STOP: [{0}] ", stop_crypto_cmd().resp.ToString("G"));
                             }
