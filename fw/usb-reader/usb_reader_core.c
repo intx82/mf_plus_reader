@@ -160,7 +160,7 @@ uint8_t  usbd_READER_DATAin (void *pdev, uint8_t epnum)
   */
 uint8_t  usbd_READER_DATAout (void *pdev, uint8_t epnum)
 	{
-	DCD_EP_PrepareRx(pdev, READER_DATA_OUT_EP, (uint8_t*)(reader_temp_buffer),(usb_reader_cmd>>8));
+	DCD_EP_PrepareRx(pdev, READER_DATA_OUT_EP, (uint8_t*)(reader_temp_buffer),sizeof(reader_temp_buffer));
 	return USBD_OK;
 	}
 

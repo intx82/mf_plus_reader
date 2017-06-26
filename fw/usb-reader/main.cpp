@@ -112,6 +112,7 @@ int main()
 
 			case COMM:
 				{
+				NVIC_DisableIRQ(USB_IRQn);
 				if ((reader.PCD_ReadRegister(MFRC522_T::TxModeReg)&0x80) != 0x80)
 					{
 					usb_reader_cmd_ptr->resp  = reader.PCD_CalculateCRC(reader_temp_buffer,usb_reader_cmd_ptr->len,&reader_temp_buffer[usb_reader_cmd_ptr->len])|0x80;
@@ -131,6 +132,7 @@ int main()
 					{
 					usb_reader_cmd_ptr->len = resp_len;
 					}
+				NVIC_EnableIRQ(USB_IRQn);
 				};
 			break;
 
@@ -144,8 +146,9 @@ int main()
 
 			case MF_AUTH:
 				{
-				if(usb_reader_cmd_ptr->len >= 8)
+				if(usb_reader_cmd_ptr->len >= (1+sizeof(MFRC522_T::MIFARE_Key)+sizeof(MFRC522_T::uid_t)))
 					{
+					NVIC_DisableIRQ(USB_IRQn);
 					struct mf_auth_cmd_t
 						{
 						uint8_t block;
@@ -153,12 +156,20 @@ int main()
 						MFRC522_T::uid_t uid;
 						};
 					mf_auth_cmd_t* d = (mf_auth_cmd_t*)&reader_temp_buffer;
-					usb_reader_cmd_ptr->resp = (uint8_t)reader.PCD_Authenticate(MFRC522_T::PICC_CMD_MF_AUTH_KEY_A,d->block,&d->key,&d->uid)|0x80;
+						
+						
+					MFRC522_T::MIFARE_Key k = {};
+					memcpy((uint8_t*)&k,&d->key,6);
+					MFRC522_T::uid_t s = {};
+					memcpy((uint8_t*)&s,&d->uid,sizeof(MFRC522_T::uid_t));
+					
+					usb_reader_cmd_ptr->resp = (uint8_t)reader.PCD_Authenticate(MFRC522_T::PICC_CMD_MF_AUTH_KEY_A,d->block,&k,&s)|0x80;
 					usb_reader_cmd_ptr->len = 0;
+					NVIC_EnableIRQ(USB_IRQn);
 					}
 				else
 					{
-					usb_reader_cmd_ptr->resp = 0xff;
+					usb_reader_cmd_ptr->resp = 0xfe;
 					usb_reader_cmd_ptr->len = 0;
 					}
 				};
